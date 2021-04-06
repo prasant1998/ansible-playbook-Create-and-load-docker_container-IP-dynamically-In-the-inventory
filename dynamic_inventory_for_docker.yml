@@ -1,0 +1,90 @@
+- hosts: localhost
+  vars_prompt:
+    - name: container_name
+      prompt: "Enter the Container Name"
+      private: no
+  tasks:
+  - name: "configuring docker repo"
+    copy:
+       src: "/etc/yum.repos.d/docker.repo"
+
+       dest: "/etc/yum.repos.d/docker.repo"
+
+  
+  
+  - name: "Installing the Docker package"
+    command: "yum install docker-ce.x86_64 --nobest  -y"
+
+  - name: "Installing the Python3 package"
+    package:
+      name: "python3"
+      state: present
+    register: python
+
+  - debug: 
+      var: python.stdout
+
+  - name: "Installing the python Dependency Of Docker"
+    command: pip3 install docker-py
+    register: docker
+
+  - debug:
+      var: docker.stdout
+
+  - name: "Starting the Docker services"
+    service:
+      name: "docker"
+      state: started
+      enabled: yes
+
+  - name: "Pulling a image from public repository docker.hub"
+    docker_image:
+      name: "prasant1998/ssh-docker"
+      source: pull
+
+  - name: "Launching a docker container with webserver preconfigured"
+    docker_container:
+      name: "{{container_name}}"
+      image: prasant1998/sshtesting
+      interactive: yes
+      detach: yes
+      tty: yes
+      ports:
+      - "8080:80"
+      - "2020:22"
+      state: started
+
+  - name: "Info of the container"
+    docker_container_info:
+      name: "{{container_name}}"
+    register: result
+
+  - name: "debugging the result"
+    debug:
+      msg: "{{ result }}"
+
+  - name: Printing IP address
+    debug:
+      msg: "{{ result.container.NetworkSettings.IPAddress }}"
+
+  - name: updating the container Ip in the inventory dynamically 
+    blockinfile:
+      path: ip.txt
+      block: |
+             [docker]
+             {{ result.container.NetworkSettings.IPAddress }} ansible_user=root ansible_ssh_pass=root ansible_connection=ssh 
+
+- hosts: docker
+  tasks: 
+  - name: "Installing httpd"
+    package:
+      name: httpd
+      state: present
+  - name: "Starting the services"
+    command: echo "/usr/sbin/httpd -DFOREGROUND" >> /root/.bashrc
+  - name: "Copying the web page......"
+    copy:
+      dest: "/var/www/html/index.html"
+      content: "Now my webserver is working fine ....PRASANT"
+
+
